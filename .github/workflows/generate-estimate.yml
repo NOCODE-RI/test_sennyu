@@ -1,0 +1,70 @@
+name: Generate Estimate from Function List
+
+on:
+  workflow_dispatch:  # 手動実行用
+  push:
+    paths:
+      - '00_商談段階/01_機能一覧/機能一覧.md'  # 機能一覧が更新されたら実行
+      - '00_商談段階/04_議事録/**'
+      - '10_要件定義段階/07_議事録/**'
+
+jobs:
+  generate-estimate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm install axios
+
+      - name: Generate estimate
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        run: node .github/scripts/generate-estimate.js
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [[ -n $(git status -s) ]]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create PR
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: estimate/auto-generate-${{ github.run_number }}
+          delete-branch: true
+          title: "estimate: 機能一覧から初期見積もりを自動生成"
+          body: |
+            ## 📊 自動生成された見積もり
+            
+            機能一覧と見積もりテンプレートから初期見積もりを生成しました。
+            
+            ### 更新されたファイル
+            - `00_商談段階/02_見積もり/AI入力テンプレート_初期見積もり.md`
+            - `00_商談段階/02_見積もり/初期見積もり.md`
+            
+            ### 確認事項
+            - [ ] 各機能の工数が適切か確認
+            - [ ] 複雑度の判定が正しいか確認
+            - [ ] 追加すべき機能がないか確認
+            - [ ] 合計工数が妥当か確認
+            
+            ### 次のステップ
+            1. このPRをマージ
+            2. 必要に応じて手動で調整
+            3. お客様に提示
+          commit-message: "estimate: 機能一覧から初期見積もりを自動生成"
+          labels: estimate, automation

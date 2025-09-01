@@ -1,0 +1,61 @@
+name: Claude Auto PR (overwrite sections)
+
+on:
+  workflow_dispatch:  # 手動実行用
+  push:
+    paths:
+      - '00_商談段階/04_議事録/**'  # サブディレクトリも含む
+      - '10_要件定義段階/07_議事録/**'
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm install axios
+
+      - name: Run Claude updater
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        run: node .github/scripts/claude-update-overwrite.js
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [[ -n $(git status -s) ]]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create PR
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: claude/auto-overwrite-${{ github.run_number }}
+          delete-branch: true
+          title: "docs: 要件定義を議事録から自動反映"
+          body: |
+            ## 📝 自動生成されたPR
+            
+            Claudeが議事録から要件定義書の更新を提案しました。
+            
+            ### 変更内容
+            - docs/requirements.md の該当セクションを更新
+            
+            ### 確認事項
+            - [ ] 内容が適切か確認
+            - [ ] 誤った削除がないか確認
+          commit-message: "docs: 議事録から要件定義を自動更新"
+          labels: docs, automation
