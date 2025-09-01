@@ -7,6 +7,6 @@
     "update-docs": "node .github/scripts/claude-update.js"
   },
   "dependencies": {
-    "axios": "^1.7.0"
+    "axios": "^1.11.0"
   }
 }
